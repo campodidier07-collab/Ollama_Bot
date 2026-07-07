@@ -86,6 +86,10 @@ button, input {
   background: rgba(11, 147, 246, 0.5);
 }
 
+.code-execute-btn:hover {
+  background: rgba(74, 222, 128, 0.1) !important;
+}
+
 /* LAYOUT PRINCIPAL */
 .app-container {
   display: flex;
@@ -795,9 +799,56 @@ button, input {
 }
 
 /* RESPONSIVE */
+.mobile-overlay {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  .sidebar { display: none; }
-  .input-container { padding: 16px; }
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+  
+  .sidebar { 
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: calc(100vh - 32px);
+    margin: 16px;
+    z-index: 50;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  
+  .sidebar.hidden {
+    transform: translateX(-120%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .chat-area {
+    width: 100vw;
+  }
+  
+  .message-text {
+    font-size: 14px;
+    padding: 12px 16px;
+  }
+
+  .input-container { 
+    padding: 12px;
+  }
+
+  .chat-input form {
+    padding: 8px 12px;
+  }
 }
 
 /* MARKDOWN ESTILOS */
@@ -929,6 +980,11 @@ button, input {
     padding: 20px !important;
   }
 }
+
 .markdown-body th {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+.code-execute-btn:hover {
+  background: rgba(74, 222, 128, 0.1) !important;
 }

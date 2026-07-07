@@ -3,10 +3,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { Bot, User, Copy, Check, Square, Volume2, RefreshCw, Pencil, ArrowDown } from "lucide-react";
+import { Bot, User, Copy, Check, Square, Volume2, RefreshCw, Pencil, ArrowDown, Play, Terminal } from "lucide-react";
 
 const CodeBlock = ({ match, codeString, ...props }) => {
   const [copiado, setCopiado] = useState(false);
+  const [ejecutando, setEjecutando] = useState(false);
+  const [salidaTerminal, setSalidaTerminal] = useState(null);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(codeString);
@@ -14,26 +16,69 @@ const CodeBlock = ({ match, codeString, ...props }) => {
     setTimeout(() => setCopiado(false), 2000);
   };
 
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+  const language = match[1]?.toLowerCase();
+  const isExecutable = language === "javascript" || language === "js" || language === "python" || language === "py";
+
+  const handleExecute = async () => {
+    setEjecutando(true);
+    setSalidaTerminal("Ejecutando...");
+    try {
+      const res = await fetch(`${API_URL}/api/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language, code: codeString })
+      });
+      const data = await res.json();
+      setSalidaTerminal(data.output || data.error || "Sin salida");
+    } catch (err) {
+      setSalidaTerminal("Error de red al ejecutar");
+    } finally {
+      setEjecutando(false);
+    }
+  };
+
   return (
-    <div className="code-block-wrapper">
+    <div className="code-block-wrapper" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="code-block-header">
         <span className="code-lang">{match[1]}</span>
-        <button 
-          className="code-copy-btn"
-          onClick={handleCopy}
-          style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'transparent', border: 'none', color: '#94A3B8' }}
-        >
-          {copiado ? <><Check size={14} color="#4ade80" /> Copiado</> : <><Copy size={14} /> Copiar Código</>}
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {isExecutable && (
+            <button 
+              className="code-execute-btn"
+              onClick={handleExecute}
+              disabled={ejecutando}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: ejecutando ? 'wait' : 'pointer', background: 'transparent', border: 'none', color: '#4ade80' }}
+            >
+              <Play size={14} fill="currentColor" /> {ejecutando ? "Ejecutando..." : "Ejecutar"}
+            </button>
+          )}
+          <button 
+            className="code-copy-btn"
+            onClick={handleCopy}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: 'transparent', border: 'none', color: '#94A3B8' }}
+          >
+            {copiado ? <><Check size={14} color="#4ade80" /> Copiado</> : <><Copy size={14} /> Copiar Código</>}
+          </button>
+        </div>
       </div>
       <SyntaxHighlighter
         children={codeString}
         style={vscDarkPlus}
         language={match[1]}
         PreTag="div"
-        customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+        customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: salidaTerminal !== null ? 0 : '8px', borderBottomRightRadius: salidaTerminal !== null ? 0 : '8px' }}
         {...props}
       />
+      {salidaTerminal !== null && (
+        <div className="terminal-output" style={{ background: '#000000', color: '#4ade80', padding: '12px', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', fontFamily: 'monospace', fontSize: '13px', borderTop: '1px solid #333', maxHeight: '200px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}>
+            <Terminal size={12} /> Salida de Terminal
+            <button onClick={() => setSalidaTerminal(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Cerrar</button>
+          </div>
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{salidaTerminal}</pre>
+        </div>
+      )}
     </div>
   );
 };

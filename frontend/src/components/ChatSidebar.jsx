@@ -3,6 +3,7 @@ import { Plus, PanelLeftClose, Search, X, Pencil, Trash2, LogOut, Sun, Moon, Use
 
 const ChatSidebar = ({
   mostrarChats,
+  setMostrarChats,
   chats,
   chatActivo,
   setChatActivo,
@@ -47,7 +48,12 @@ const ChatSidebar = ({
         <button className="new-chat-btn" onClick={nuevoChat} style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
           <Plus size={18} /> Nuevo chat
         </button>
-        <button className="close-sidebar-btn" title="Cerrar barra lateral" style={{display: 'flex', alignItems: 'center'}}>
+        <button 
+          className="close-sidebar-btn" 
+          title="Cerrar barra lateral" 
+          onClick={() => setMostrarChats(false)}
+          style={{display: 'flex', alignItems: 'center'}}
+        >
           <PanelLeftClose size={18} />
         </button>
       </div>

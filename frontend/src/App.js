@@ -71,8 +71,16 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Mobile Overlay */}
+      {mostrarChats && (
+        <div 
+          className="mobile-overlay" 
+          onClick={() => setMostrarChats(false)}
+        />
+      )}
       <ChatSidebar
         mostrarChats={mostrarChats}
+        setMostrarChats={setMostrarChats}
         chats={chats}
         chatActivo={chatActivo}
         setChatActivo={(id) => {
