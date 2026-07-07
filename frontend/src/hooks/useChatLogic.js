@@ -35,7 +35,7 @@ export const useChatLogic = (token) => {
         cargadoInicial.current = true;
       })
       .catch((err) => console.error("Error cargando chats", err));
-  }, [token]);
+  }, [token, API_URL]);
 
   // 2. Guardado automático (Debounce)
   useEffect(() => {
@@ -60,7 +60,7 @@ export const useChatLogic = (token) => {
     }, 1000);
 
     return () => clearTimeout(timeout);
-  }, [chats, chatActivo, token]);
+  }, [chats, chatActivo, token, API_URL]);
 
   const chatActual = chats.find((chat) => chat.id === chatActivo) || {};
   const mensajes = chatActual.mensajes || [];
