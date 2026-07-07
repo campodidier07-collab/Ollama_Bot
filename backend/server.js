@@ -6,6 +6,10 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const google = require("googlethis");
+const { exec } = require("child_process");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "dummy_key");
 
 const app = express();
 
@@ -23,13 +27,8 @@ app.use('/api', authRoutes);
 app.use('/api/chats', chatRoutes);
 
 /*
-  Modelo recomendado para más velocidad:
-  - llama3.2:3b = buen equilibrio entre velocidad y calidad
-  - llama3.2:1b = más rápido, pero menos inteligente
-  - llama3.1:8b = mejor, pero más lento
+  Ahora usamos Gemini API para poder desplegar a la nube gratis!
 */
-const MODELO = process.env.MODELO || "llama3.2:3b";
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434/api/generate";
 const PORT = process.env.PORT || 5000;
 
 // Crear carpeta uploads si no existe
@@ -102,17 +101,12 @@ function splitTextIntoChunks(text, chunkSize = 1000) {
 }
 
 async function getEmbedding(texto) {
-  const OLLAMA_EMBED_URL = OLLAMA_URL.replace("/generate", "/embeddings");
   try {
-    const res = await fetch(OLLAMA_EMBED_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODELO, prompt: texto })
-    });
-    const data = await res.json();
-    return data.embedding;
+    const model = genAI.getGenerativeModel({ model: "gemini-embedding-2"});
+    const result = await model.embedContent(texto);
+    return result.embedding.values;
   } catch (error) {
-    console.error("Error obteniendo embedding:", error);
+    console.error("Error obteniendo embedding con Gemini:", error);
     return null;
   }
 }
@@ -297,81 +291,36 @@ Instrucciones adicionales:
 Asistente:
 `;
 
-    const ollamaPayload = {
-      model: imagenBase64 ? "moondream" : MODELO,
-      prompt: promptCompleto,
-      stream: true,
-      keep_alive: "10m",
-      options: {
-        temperature: 0.3,
-        num_predict: 350,
-        num_ctx: 4096,
-      },
-    };
-
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
+    let parts = [{ text: promptCompleto }];
+    
     if (imagenBase64) {
-      ollamaPayload.images = [imagenBase64];
-      console.log("Imagen detectada. Usando el modelo de visión: moondream");
-    }
-
-    const response = await fetch(OLLAMA_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(ollamaPayload),
-    });
-
-    if (!response.ok) {
-      throw new Error("Ollama no respondió correctamente");
+      parts.push({
+        inlineData: {
+          data: imagenBase64,
+          mimeType: "image/jpeg"
+        }
+      });
+      console.log("Imagen detectada. Usando Gemini 2.5 Flash Vision.");
     }
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Inyectar fuentes al principio si las hay
     if (urlsFuentes.length > 0) {
       const fuentesMarkdown = `**Fuentes consultadas:** ${urlsFuentes.join(" | ")}\n\n`;
       res.write(fuentesMarkdown);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+    const resultStream = await model.generateContentStream({
+      contents: [{ role: 'user', parts: parts }]
+    });
 
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        if (buffer.trim() !== "") {
-          try {
-            const json = JSON.parse(buffer);
-            if (json.response) res.write(json.response);
-          } catch (e) {
-            // ignorar el último pedazo si falla
-          }
-        }
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const lineas = buffer.split("\n");
-      buffer = lineas.pop(); // Guardar el último fragmento incompleto
-
-      for (const linea of lineas) {
-        if (linea.trim() !== "") {
-          try {
-            const json = JSON.parse(linea);
-
-            if (json.response) {
-              res.write(json.response);
-            }
-          } catch (error) {
-            console.log("Error parseando respuesta de Ollama:", error.message, "| Linea:", linea);
-          }
-        }
-      }
+    for await (const chunk of resultStream.stream) {
+      const chunkText = chunk.text();
+      res.write(chunkText);
     }
 
     res.end();
@@ -379,7 +328,7 @@ Asistente:
     console.log("Error en /chat:", error);
 
     res.status(500).json({
-      error: "Error con Ollama",
+      error: "Error con Gemini API",
       detalle: error.message,
     });
   }
@@ -447,32 +396,11 @@ ${contenidoLimitado}
 Haz un resumen claro, breve y profesional en español.
 `;
 
-    const response = await fetch(OLLAMA_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODELO,
-        prompt,
-        stream: false,
-        keep_alive: "10m",
-        options: {
-          temperature: 0.3,
-          num_predict: 350,
-          num_ctx: 4096,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Ollama no respondió correctamente");
-    }
-
-    const data = await response.json();
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
 
     res.json({
-      respuesta: data.response,
+      respuesta: result.response.text(),
       archivo: req.file.originalname,
       chatId,
     });
@@ -558,32 +486,11 @@ ${contenidoLimitado}
 Haz un resumen claro, breve y profesional en español.
 `;
 
-    const response = await fetch(OLLAMA_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODELO,
-        prompt,
-        stream: false,
-        keep_alive: "10m",
-        options: {
-          temperature: 0.3,
-          num_predict: 350,
-          num_ctx: 4096,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Ollama no respondió correctamente");
-    }
-
-    const data = await response.json();
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
 
     res.json({
-      respuesta: data.response,
+      respuesta: result.response.text(),
       archivo: req.file.originalname,
       chatId,
     });
@@ -643,7 +550,48 @@ app.delete("/archivo/:chatId", async (req, res) => {
   }
 });
 
+// ===============================
+// EJECUCIÓN DE CÓDIGO
+// ===============================
+app.post("/api/execute", (req, res) => {
+  const { language, code } = req.body;
+  if (!language || !code) {
+    return res.status(400).json({ error: "Faltan parámetros" });
+  }
+
+  const scratchDir = path.join(__dirname, "scratch");
+  if (!fs.existsSync(scratchDir)) {
+    fs.mkdirSync(scratchDir);
+  }
+
+  const ext = language === "python" || language === "py" ? "py" : "js";
+  const runner = language === "python" || language === "py" ? "python" : "node";
+  const filename = `temp_${Date.now()}.${ext}`;
+  const filepath = path.join(scratchDir, filename);
+
+  try {
+    fs.writeFileSync(filepath, code);
+  } catch (err) {
+    return res.status(500).json({ error: "No se pudo crear el archivo temporal" });
+  }
+
+  exec(`${runner} "${filepath}"`, { timeout: 10000 }, (error, stdout, stderr) => {
+    if (fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath);
+    }
+
+    if (error) {
+      if (error.killed) {
+        return res.json({ output: "Error: El código tardó demasiado en ejecutarse (Timeout 10s)." });
+      }
+      return res.json({ output: stderr || error.message || "Error ejecutando el código" });
+    }
+
+    res.json({ output: stdout || "El código se ejecutó sin errores, pero no imprimió nada en consola." });
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
-  console.log(`Modelo activo: ${MODELO}`);
+  console.log(`Motor de IA conectado: Gemini API`);
 });

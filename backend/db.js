@@ -1,28 +1,21 @@
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '', // Laragon por defecto no tiene contraseña
-  database: 'chatbot_db',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'chatbot_db',
+  port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  // Aiven requiere SSL
+  ssl: process.env.DB_HOST?.includes('aivencloud') ? { rejectUnauthorized: false } : undefined
 });
 
 async function initDB() {
   try {
-    // 1. Conectarnos sin especificar base de datos para crearla si no existe
-    const connection = await mysql.createConnection({
-      host: 'localhost',
-      user: 'root',
-      password: ''
-    });
-    
-    await connection.query(`CREATE DATABASE IF NOT EXISTS chatbot_db;`);
-    await connection.end();
-
-    // 2. Crear las tablas en la base de datos chatbot_db
     const createUsersTable = `
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
