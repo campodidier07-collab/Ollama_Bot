@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
 // Inicializar DB
-require('./db');
+const pool = require('./db');
 
 // Rutas de MySQL
 const authRoutes = require('./routes/auth');
@@ -54,9 +54,6 @@ const upload = multer({
     fileSize: 15 * 1024 * 1024, // 15 MB
   },
 });
-
-// Guardar archivos por chat
-const archivosPorChat = {};
 
 // Obtener ID del chat
 function obtenerChatId(req) {
@@ -142,7 +139,15 @@ app.post("/chat", async (req, res) => {
   const chatId = req.body.chatId || "chat_default";
   const imagenBase64 = req.body.imagenBase64;
 
-  const archivoDelChat = archivosPorChat[chatId];
+  let archivoDelChat = null;
+  try {
+    const [rows] = await pool.query('SELECT archivo FROM chats WHERE id = ?', [chatId]);
+    if (rows.length > 0 && rows[0].archivo) {
+      archivoDelChat = rows[0].archivo;
+    }
+  } catch (dbErr) {
+    console.error("Error obteniendo archivo de BD:", dbErr);
+  }
 
   try {
     if (!mensaje.trim()) {
@@ -422,12 +427,15 @@ app.post("/upload", upload.single("archivo"), async (req, res) => {
     }
     console.log("Vectorización completada.");
 
-    archivosPorChat[chatId] = {
+    const nuevoArchivo = {
       nombre: req.file.originalname,
       tipo: "txt",
       contenido,
       chunks: chunksConVectores
     };
+
+    // Guardar en MySQL
+    await pool.query('UPDATE chats SET archivo = ? WHERE id = ?', [JSON.stringify(nuevoArchivo), chatId]);
 
     const contenidoLimitado = limitarTexto(contenido, 7000);
 
@@ -530,12 +538,15 @@ app.post("/upload-pdf", upload.single("archivo"), async (req, res) => {
     }
     console.log("Vectorización completada.");
 
-    archivosPorChat[chatId] = {
+    const nuevoArchivo = {
       nombre: req.file.originalname,
       tipo: "pdf",
       contenido,
       chunks: chunksConVectores
     };
+
+    // Guardar en MySQL
+    await pool.query('UPDATE chats SET archivo = ? WHERE id = ?', [JSON.stringify(nuevoArchivo), chatId]);
 
     const contenidoLimitado = limitarTexto(contenido, 7000);
 
@@ -594,37 +605,42 @@ Haz un resumen claro, breve y profesional en español.
 // ===============================
 // VER ARCHIVO DEL CHAT
 // ===============================
-app.get("/archivo/:chatId", (req, res) => {
-  const chatId = req.params.chatId;
-  const archivo = archivosPorChat[chatId];
+app.get("/archivo/:chatId", async (req, res) => {
+  try {
+    const chatId = req.params.chatId;
+    const [rows] = await pool.query('SELECT archivo FROM chats WHERE id = ?', [chatId]);
+    const archivo = rows.length > 0 ? rows[0].archivo : null;
 
-  if (!archivo) {
-    return res.json({
-      tieneArchivo: false,
-      mensaje: "Este chat no tiene archivo cargado",
+    if (!archivo) {
+      return res.json({
+        tieneArchivo: false,
+        mensaje: "Este chat no tiene archivo cargado",
+      });
+    }
+
+    res.json({
+      tieneArchivo: true,
+      nombre: archivo.nombre,
+      tipo: archivo.tipo,
     });
+  } catch (err) {
+    res.status(500).json({ error: "Error de servidor" });
   }
-
-  res.json({
-    tieneArchivo: true,
-    nombre: archivo.nombre,
-    tipo: archivo.tipo,
-  });
 });
 
 // ===============================
 // ELIMINAR ARCHIVO DEL CHAT
 // ===============================
-app.delete("/archivo/:chatId", (req, res) => {
-  const chatId = req.params.chatId;
-
-  if (archivosPorChat[chatId]) {
-    delete archivosPorChat[chatId];
+app.delete("/archivo/:chatId", async (req, res) => {
+  try {
+    const chatId = req.params.chatId;
+    await pool.query('UPDATE chats SET archivo = NULL WHERE id = ?', [chatId]);
+    res.json({
+      mensaje: "Archivo eliminado del chat",
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Error de servidor" });
   }
-
-  res.json({
-    mensaje: "Archivo eliminado del chat",
-  });
 });
 
 app.listen(PORT, () => {
