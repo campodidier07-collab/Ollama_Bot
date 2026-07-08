@@ -148,8 +148,8 @@ const MessageList = ({
     if (!list) return;
 
     const handleScroll = () => {
-      // Si estamos a menos de 50px del fondo, asumimos que estamos en el fondo
-      const isAtBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 50;
+      // Ajustamos el umbral a 150px porque añadimos un div de 120px al final
+      const isAtBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 150;
       isUserScrolling.current = !isAtBottom;
       setShowScrollButton(!isAtBottom);
     };
