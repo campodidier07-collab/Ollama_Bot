@@ -503,6 +503,27 @@ button, input {
   overflow-wrap: break-word;
   overflow-x: hidden;
   box-shadow: var(--shadow-sm);
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Fix Markdown margins and paddings inside bubbles */
+.message-text p {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.message-text p:last-child {
+  margin-bottom: 0;
+}
+.message-text ul, .message-text ol {
+  padding-left: 20px; /* Default is 40px, too large for mobile */
+  margin: 12px 0;
+}
+.message-text li {
+  margin-bottom: 6px;
+}
+.message-text li p {
+  margin-bottom: 4px; /* Less spacing inside lists */
 }
 
 .message-row.usuario .message-text {
@@ -843,7 +864,19 @@ button, input {
   
   .message-text {
     font-size: 14px;
-    padding: 12px 16px;
+    padding: 12px 14px; /* slightly smaller padding on mobile */
+  }
+  
+  .message-text ul, .message-text ol {
+    padding-left: 16px; /* Even smaller left padding for mobile lists */
+  }
+  
+  .message-row {
+    padding: 12px 8px; /* Less padding on the edges */
+  }
+  
+  .message-content-wrapper {
+    gap: 8px; /* Avatar closer to text */
   }
 
   .input-container { 

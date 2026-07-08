@@ -296,7 +296,7 @@ const MessageList = ({
         </div>
       ))}
 
-      <div ref={endRef}></div>
+      <div ref={endRef} style={{ height: '120px', flexShrink: 0 }}></div>
       </div>
       
       {showScrollButton && (
@@ -305,7 +305,7 @@ const MessageList = ({
           className="scroll-to-bottom-btn"
           style={{
             position: 'absolute',
-            bottom: '20px',
+            bottom: '100px',
             left: '50%',
             transform: 'translateX(-50%)',
             background: 'var(--btn-primary-bg)',
